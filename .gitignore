@@ -1,2 +1,2 @@
 # ignore testing notebook
-oblate_lc/*.ipynb
+*.ipynb
