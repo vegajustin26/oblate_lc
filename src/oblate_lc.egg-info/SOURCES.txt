@@ -1,0 +1,5 @@
+setup.py
+src/oblate_lc.egg-info/PKG-INFO
+src/oblate_lc.egg-info/SOURCES.txt
+src/oblate_lc.egg-info/dependency_links.txt
+src/oblate_lc.egg-info/top_level.txt
