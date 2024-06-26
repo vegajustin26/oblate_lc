@@ -1,1 +1,0 @@
-from oblate_lc import oblate_lc
