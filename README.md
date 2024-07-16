@@ -4,4 +4,4 @@ This package produces transit lightcurves for oblate exoplanets, specifically in
 
 This work was the precursor to [**squishyplanet**](https://github.com/ben-cassese/squishyplanet), which is a fully-flexible triaxial lightcurve model that can accommodate oblateness, tidal-locking, and arbitrary-order limb-darkening, among other features.
 
-Many thanks to Avishi Poddar for coding up the original working version of this code.
+Special thanks to Avishi Poddar for coding up the original working version of this code.
