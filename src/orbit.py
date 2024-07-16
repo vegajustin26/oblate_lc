@@ -1,16 +1,17 @@
 import math
 import numpy as np
 
-
 def true_anomaly(params, times):
-
     """
     finds true anomaly given eccentricity, period, and times
-    uses reference points to calculate E, M, and f
-    different procedures for eccentricities
+    uses reference points M_ref, E_ref, and tref to calculate E, M, and f
+
+    Args:
+        params: TransitParams object
+        times: array of times
     """
 
-    def danby(E, M): # this is also size of M
+    def danby(E, M):
         return(E - params.ecc*np.sin(E) - M)
     
     f_ref = math.pi/2 - params.omega
@@ -25,6 +26,7 @@ def true_anomaly(params, times):
         f = E
 
     elif 0 < params.ecc < 1:
+        print("Eccentricities between 0-1 not well-tested, use with caution!")
         E_ref = 2 * math.atan(math.tan(f_ref/2)/e_k)
 
         if E_ref < -(math.pi/2):
@@ -52,12 +54,19 @@ def true_anomaly(params, times):
     return(f)
 
 def on_sky(params, times):
-    '''
+    """
     Times, period in the same units
     this is coordinate transformation from on-sky to orbital plane transit coordinates
-    ''' 
 
-    f = true_anomaly(params, times) # true anomaly
+    Args:
+        params: TransitParams object
+        times: array of times
+
+    Returns:
+        X, Y, Z: orbit coordinates
+    """ 
+
+    f = true_anomaly(params, times)
     r = (params.a*(1-params.ecc**2)) / (1+params.ecc*np.cos(f))
     
     X =  r * (np.cos(params.w)*np.cos(params.omega+f) - np.sin(params.w)*np.sin(params.omega+f)*np.cos(params.inc))

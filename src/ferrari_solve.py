@@ -1,17 +1,55 @@
 import math
 import numpy as np
 
-# for oblate uniform
 def overlap_area(nintpts, xint, yint, params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
+    """
+    driver function for calculating the overlapping area of two ellipses
+    
+    Args:
+        nintpts: number of intersection points
+        xint: x-coordinates of the intersection points
+        yint: y-coordinates of the intersection points
+        params: parameters of the transit model
+        H2_TR: x-coordinate of the center of the planet, translated and rotated
+        K2_TR: y-coordinate of the center of the planet, translated and rotated
+        AA: coefficient of x^2
+        BB: coefficient of xy
+        CC: coefficient of y^2
+        DD: coefficient of x
+        EE: coefficient of y
+        FF: constant term
+
+    Returns:
+        OverlapArea: overlapping area of the two ellipses
+    """
+
     if(nintpts == 0 or nintpts == 1):
         OverlapArea = nointpts(params,H2_TR,K2_TR,FF)
-        thetas = [0, 2*math.pi]
-        return OverlapArea, thetas
+        return OverlapArea
     elif(nintpts == 2):
-        OverlapArea, thetas = twointpts(xint,yint,params,H2_TR, K2_TR, AA,BB,CC,DD,EE,FF)
-        return OverlapArea, thetas
+        OverlapArea = twointpts(xint,yint,params,H2_TR, K2_TR, AA,BB,CC,DD,EE,FF)
+        return OverlapArea
 
 def qrt_coeff(params, H2, K2):
+    """
+    Calculates the coefficients of Equation 15 in Hughes and Chraibi 2011
+
+    Args:
+        params: parameters of the transit model
+        H2: x-coordinate of the center of the planet
+        K2: y-coordinate of the center of the planet
+
+    Returns:
+        cy: coefficients of the quartic equation
+        AA: coefficient of x^2
+        BB: coefficient of xy
+        CC: coefficient of y^2
+        DD: coefficient of x
+        EE: coefficient of y
+        FF: constant term
+        H2_TR: x-coordinate of the center of the planet, translated and rotated
+        K2_TR: y-coordinate of the center of the planet, translated and rotated
+    """
 
     cosphi = math.cos(params.phi_s)
     sinphi = math.sin(params.phi_s)
@@ -61,15 +99,23 @@ def qrt_coeff(params, H2, K2):
     return(cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR)
 
 def qrt_solve(cy, params):
-    
+    """
+    Solves the quartic equation (Eq. 15 in Hughes and Chraiabi 2011) for the intersection points of the two ellipses
+
+    Args:
+        cy: coefficients of the quartic equation
+        params: parameters of the transit model
+
+    Returns:
+        nychk: number of real roots
+        ychk: y-values of the intersection points of the two ellipses
+
+    """
+
     py = [0] * 5
     r  = [[0.0,0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0,0.0]]
-    # cy = cy[::-1] # needed because this is how the C-style code was written    
-    # print("cy: {}".format(cy))
-    #Once the coefficents for the quartic equation in y are known, the roots of the quartic polynomial will represent y-values of the intersection points of the two ellipse curves.
-    #The quartic sometimes degenerates into a polynomial of lesser degree, so handle all possible cases.
     
-    if(abs(cy[4]) > 0.0): # if not zero
+    if(abs(cy[4]) > 0.0): # if first coefficient not zero
 
         #Quartic coefficient nonzero -> use quartic formula
         for i in range(0,4):
@@ -109,20 +155,14 @@ def qrt_solve(cy, params):
         r[2][1] = 0.0
         nroots = 1
     else:
-
-        #Completely degenerates quartic -> ellipses identical?
-        #A completely degenerate quartic, which would seem to indicate that the ellipses are identical. However, some configurations lead to a degenerate quartic with no points of intersection.
+        # Ellipses are identical
         nroots = 0
-    
 
     #Determine which roots are real; discard any complex roots
     nychk = 0
     ychk = [0] * (nroots+1)
     for i in range(1,nroots+1):
-        # print(r[2][i])
-        # print(abs(r[2][i]))
         if(abs(r[2][i])<(10**(-7))):
-            # print("winner {}".format(r[2][i]))
             nychk = nychk+1
             ychk[nychk] = r[1][i]*params.rstar_pol
     
@@ -135,57 +175,20 @@ def qrt_solve(cy, params):
             ychk[k+1] = ychk[k]
         ychk[k+1] = tmp0
     
-    return(nychk, ychk)  
-
-# def circ_solve(params.rstar_eq, params.rpol, H2, K2):
-#     dcrim = -(H2*H2) * (params.rstar_eq*params.rstar_eq + ((-(params.rpol*params.rpol) + H2*H2 + K2*K2))**2 - 2 * params.rstar_eq * (params.rpol*params.rpol + H2*H2 + K2*K2))
-#     dmr = 2 * (H2*H2 + K2*K2)
-#     numr = K2 * (params.rstar_eq - params.rpol*params.rpol + H2*H2 + K2*K2)
-
-#     sols = []
-#     sol1 = (numr - np.emath.sqrt(dcrim))/dmr
-#     sol2 = (numr + np.emath.sqrt(dcrim))/dmr
-
-#     if np.isreal(sol1) == True:
-#         sols.append(sol1)
-#         if np.isreal(sol2) == True:
-#             sols.append(sol2)
-    
-#     return(np.array(sols))
-
-# def newton_qrt_solve(cy, circ_roots):
-    cy = cy[::-1] # needed because this is how the C-style code was written    
-
-    deriv1 = np.polyder(cy, m=1) # gets coefficients of above function for derivatives
-    # deriv2 = np.polyder(cy, m=2)
-    
-    def qrt(y): # ellipse quartic function
-        return(cy[0] * y**4 + cy[1] * y**3 + cy[2] * y*y + cy[3]*y + cy[4])
-
-    def qrt_jac(y): # derivative of ellipse quartic function
-        return(deriv1[0] * y**3 + deriv1[1] * y*y + deriv1[2]*y + deriv1[3])
-
-    # def qrt_jac2(y):
-    #     return(deriv2[0] * y*y + deriv2[1] * y + deriv2[2])
-
-    # solve for roots
-    sol = newton(qrt, circ_roots, fprime = qrt_jac)#, fprime2 = qrt_jac2)
-    ychk = sol
-    ychk = np.sort(ychk)
-    nychk = len(ychk)
-
-    # not sure exactly why this is needed
-    ychk = np.insert(ychk, [0], 0)
-    ychk = np.insert(ychk, [3], [0, 1])
-    
-    # fig,ax = plt.subplots(figsize = (5,5))
-    # ax.plot(xs1, ys1, color='g', lw=0.1)
-    # ax.plot(xs2, ys2, color='b', lw=0.1)
-    # plt.show()
-
-    return(ychk, nychk)
+    return(nychk, ychk) 
 
 def QUADROOTS(p,r):
+    """
+    QUADROOTS numerically solves the quadratic equation p[0]*x^2 + p[1]*x + p[2] = 0 for real roots x.
+    
+    Args:
+        p: coefficients of the quadratic equation
+        r: roots of the quadratic equation
+
+    Returns:
+        r: roots of the quadratic equation
+    """
+
     b = -p[1]/(2.0*p[0])
     c = p[2]/p[0]
     d = b*b - c
@@ -209,6 +212,18 @@ def QUADROOTS(p,r):
     return
 
 def CUBICROOTS(p,r):
+    """
+    CUBICROOTS solves the cubic equation p[0]*x^3 + p[1]*x^2 + p[2]*x + p[3] = 0 for real roots x.
+
+    Args:
+        p: coefficients of the cubic equation
+        r: roots of the cubic equation
+
+    Returns:
+        r: roots of the cubic equation
+
+    """
+
     if(p[0] != 1.0):
         for k in range(1,5):
             p[k] = p[k]/p[0]
@@ -272,6 +287,10 @@ def CUBICROOTS(p,r):
     return
 
 def quad(c,b,p,r,e):
+    """
+    helper function for QUADROOTS
+    """
+
     p[2] = c/b
     QUADROOTS(p,r)
     for k in range(1,3):
@@ -285,6 +304,18 @@ def quad(c,b,p,r,e):
     return 
 
 def BIQUADROOTS(p,r):
+    """
+    BIQUADROOTS solves the quartic equation p[0]*x^4 + p[1]*x^3 + p[2]*x^2 + p[3]*x + p[4] = 0 for real roots x.
+
+    Args:
+        p: coefficients of the quartic equation
+        r: roots of the quartic equation
+
+    Returns:
+        r: roots of the quartic equation
+
+    """
+    
     if(p[0] != 1.0):
         for k in range(1,5):
             p[k] = p[k]/p[0]
@@ -338,24 +369,52 @@ def BIQUADROOTS(p,r):
     quad(c,b,p,r,e)
 
 def ellipse2tr(x,y,AA,BB,CC,DD,EE,FF):
+    """
+    Implicit equation of overlapping ellipses, eq. 4a in Hughes and Chraibi 2011
+
+    Args:
+        x: x-coordinate of the intersection points
+        y: y-coordinate of the intersection points
+        AA: coefficient of x^2
+        BB: coefficient of xy
+        CC: coefficient of y^2
+        DD: coefficient of x
+        EE: coefficient of y
+        FF: constant term
+
+    Returns:
+        return: value of the implicit equation
+    """
+
     return((AA*x*x) + (BB*x*y) + (CC*y*y) + (DD*x) + (EE*y) + (FF))
 
 def nointpts(params,H2_TR,K2_TR,FF):
+    """
+    
+    Routine for finding the area of the intersection of two ellipses when there are zero or one intersection points. 
+    
+    Args:
+        params: parameters of the transit model
+        H2_TR: x-coordinate of the center of the planet, translated and rotated
+        K2_TR: y-coordinate of the center of the planet, translated and rotated
+        FF: constant term
+
+    Returns:
+        return: zero if ellipses do not overlap, or area of first or second ellipse if one ellipse is inside the other
+    """
+
     #The relative size of the two ellipses can be found from the axis lengths.
     relsize = (params.rstar_eq*params.rstar_pol) - (params.req*params.rpol)
     if(relsize>0.0):
         #First ellipse is larger than second ellipse. (star bigger than planet)
-        #If the second ellipse center(H2_TR,K2_TR) is inside the first ellipse, then the second ellipse is completely inside the first ellipse; otherwise, the ellipses are disjoint.
         if(((H2_TR*H2_TR)/(params.rstar_eq*params.rstar_eq)+(K2_TR*K2_TR)/(params.rstar_pol*params.rstar_pol))<1.0):
             #Ellipse 2 is inside ellipse 1.
             return (params.req*params.rpol)
         else:
-            #print("Disjoint ellipses")
             #Disjoint ellipses.
             return 0.0
     elif(relsize<0.0):
         #Second ellipse is larger than first ellipse.
-        #If the first ellipse center (0,0) is inside the second ellipse, then ellipse 1 is completely inside ellipse 2. Otherwise, the ellipses are disjoint.
         if(FF<0.0):
             #Ellipse 1 inside ellipse 2.
             return (params.rstar_eq*params.rstar_pol)
@@ -363,26 +422,42 @@ def nointpts(params,H2_TR,K2_TR,FF):
             #Disjoint ellipses.
             return 0.0
     else:
-        #If execution arrives here, the relative sizes are identical.
-        #Check the parameters to see whether the two ellipses are identical.
         #Ellipses are identical.
         return (params.rstar_eq*params.rstar_pol)
 
 def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
-    #If exectution arrives here, the intersection points are not tangents.
-    #Determine which direction to integrate in ellipse_segment() routine for each ellipse.
+    """
+    Routine for finding the area of the intersection of two ellipses when there are two intersection points.
+
+    Args:
+        x: x-coordinates of the intersection points
+        y: y-coordinates of the intersection points
+        params: parameters of the transit model
+        H2_TR: x-coordinate of the center of the planet, translated and rotated
+        K2_TR: y-coordinate of the center of the planet, translated and rotated
+        AA: coefficient of x^2
+        BB: coefficient of xy
+        CC: coefficient of y^2
+        DD: coefficient of x
+        EE: coefficient of y
+        FF: constant term
+
+    Returns:
+        return: overlapping area of the two ellipses
+    """
+
+
     #Find the parametric angles for each point on ellipse 1.
 
     # x intersection point is bounded by params.rstar_eq=[-1, 1]
-    if(abs(x[1])>params.rstar_eq): # useless?
+    if(abs(x[1])>params.rstar_eq):
         
         if(x[1]<0.0):
             x[1] = -params.rstar_eq
         else:
             x[1] = params.rstar_eq
 
-    if(abs(x[2])>params.rstar_eq): # useless?
-        print("yas")
+    if(abs(x[2])>params.rstar_eq):
         if(x[2]<0.0):
             x[2] = -params.rstar_eq
         else:
@@ -440,26 +515,10 @@ def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
     x2_tr = (x[2]-H2_TR)*cosphi + (y[2]-K2_TR)*(-sinphi)
     y2_tr = (x[2]-H2_TR)*sinphi + (y[2]-K2_TR)*(cosphi)
 
-    
-    # ax = viz(params, PHI, H2_TR, K2_TR)
-    # ax.scatter(x[1:], y[1:], s = 20, zorder = 10, color = "black")
-    # ax.scatter(H2_TR, K2_TR, s = 5) # this holds so long that stellar obliquity is 0
-    # # ax.scatter([x1_tr, x2_tr], [y1_tr, y2_tr], s = 10, color = "purple") # this holds so long that stellar obliquity is 0
-    # ra = [x[2], K2_TR]
-    # center = np.array([H2_TR, K2_TR])
-    # xtop = np.array([x[2], y[2]])
-    # ax.scatter(x[2], K2_TR)
-    
-    # print(theta1)
-    # print(theta2)
-    
-    # plt.show()
-
     #Determine which branch of the ellipse to integrate by finding a point of the second ellipse and checking whether it is inside the first ellipse (in their once translated+rotated positions).
     #Find the parametric angles for each point on ellipse 1.
     
-    
-    if(abs(x1_tr)>params.req): # also going to never be true
+    if(abs(x1_tr)>params.req):
         
         if(x1_tr<0.0):
             x1_tr = -params.req 
@@ -471,7 +530,6 @@ def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
             x2_tr = -params.req
         else:
             x2_tr = params.req
-
 
     # calculate angle if yint in Q3 or Q4   
     if(y1_tr<0.0): #Quadrant III or IV
@@ -489,9 +547,7 @@ def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
         tmp    = theta1
         theta1 = theta2
         theta2 = tmp
-    
-    # theta1 and theta2 are angles from ellipse center to intersection points, theta1 < theta2 ALWAYS
-    thetas = [theta1, theta2]
+
 
     #Find a point on the second ellipse that is different from the two intersection points.
     xmid = params.req*math.cos((theta1+theta2)/2.0)
@@ -528,11 +584,29 @@ def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
 
     #Two intersection points
 
-    return ((area1+area2)/math.pi, thetas)
+    return ((area1+area2)/math.pi)
 
 def verify_roots(nychk, ychk, params, AA, BB, CC, DD, EE, FF):
-    # print("nychk: {}".format(nychk))
-    # print("ychk: {}".format(ychk))
+    """
+    Numerically verifies the roots of the quartic equation
+
+    Args:
+        nychk: number of real roots
+        ychk: y-values of the intersection points of the two ellipses
+        params: parameters of the transit model
+        AA: coefficient of x^2
+        BB: coefficient of xy
+        CC: coefficient of y^2
+        DD: coefficient of x
+        EE: coefficient of y
+        FF: constant term
+
+    Returns:
+        nintpts: number of intersection points
+        xint: x-coordinates of the intersection points
+        yint: y-coordinates of the intersection points
+    """
+
     nintpts = 0
     xint = [0] * (nychk + 1)
     yint = [0] * (nychk + 1)
