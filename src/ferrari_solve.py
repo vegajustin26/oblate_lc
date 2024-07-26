@@ -1,7 +1,7 @@
 import math
 import numpy as np
 
-def overlap_area(nintpts, xint, yint, params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
+def overlap_area(nintpts, xint, yint, state, H2_TR, K2_TR, AA, BB, CC, DD, EE, FF):
     """
     driver function for calculating the overlapping area of two ellipses
     
@@ -9,7 +9,7 @@ def overlap_area(nintpts, xint, yint, params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
         nintpts: number of intersection points
         xint: x-coordinates of the intersection points
         yint: y-coordinates of the intersection points
-        params: parameters of the transit model
+        state: parameters of the transit model
         H2_TR: x-coordinate of the center of the planet, translated and rotated
         K2_TR: y-coordinate of the center of the planet, translated and rotated
         AA: coefficient of x^2
@@ -24,18 +24,18 @@ def overlap_area(nintpts, xint, yint, params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
     """
 
     if(nintpts == 0 or nintpts == 1):
-        OverlapArea = nointpts(params,H2_TR,K2_TR,FF)
+        OverlapArea = nointpts(state, H2_TR,K2_TR,FF)
         return OverlapArea
     elif(nintpts == 2):
-        OverlapArea = twointpts(xint,yint,params,H2_TR, K2_TR, AA,BB,CC,DD,EE,FF)
+        OverlapArea = twointpts(xint,yint,state, H2_TR, K2_TR, AA,BB,CC,DD,EE,FF)
         return OverlapArea
 
-def qrt_coeff(params, H2, K2):
+def qrt_coeff(state, H2, K2):
     """
     Calculates the coefficients of Equation 15 in Hughes and Chraibi 2011
 
     Args:
-        params: parameters of the transit model
+        state: parameters of the transit model
         H2: x-coordinate of the center of the planet
         K2: y-coordinate of the center of the planet
 
@@ -51,23 +51,23 @@ def qrt_coeff(params, H2, K2):
         K2_TR: y-coordinate of the center of the planet, translated and rotated
     """
 
-    cosphi = math.cos(params.phi_s)
-    sinphi = math.sin(params.phi_s)
-    H2_TR  = (H2-params.pos_star[0])*cosphi + (K2-params.pos_star[1])*sinphi
-    K2_TR  = (params.pos_star[0]-H2)*sinphi + (K2-params.pos_star[1])*cosphi
-    PHI_2R = params.phi_p - params.phi_s
+    cosphi = math.cos(state["phi_s"])
+    sinphi = math.sin(state["phi_s"])
+    H2_TR  = (H2-state["pos_star"][0])*cosphi + (K2-state["pos_star"][1])*sinphi
+    K2_TR  = (state["pos_star"][0]-H2)*sinphi + (K2-state["pos_star"][1])*cosphi
+    PHI_2R = state["phi_p"] - state["phi_s"]
     if(abs(PHI_2R)>(2*math.pi)):
         PHI_2R = PHI_2R%(2*math.pi)
     
-    #Calculate the (implicit) polynomial coefficients for the second ellipse in its translated (by (-params.pos_star[0],-H2)) and rotated (by -phi_1) position: AA*x^2 + BB*x*y + CC*y^2 + DD*x + EE*y + FF = 0
+    #Calculate the (implicit) polynomial coefficients for the second ellipse in its translated (by (-state["pos_star"][0],-H2)) and rotated (by -phi_1) position: AA*x^2 + BB*x*y + CC*y^2 + DD*x + EE*y + FF = 0
     
     cosphi       = math.cos(PHI_2R)
     cosphi2      = cosphi*cosphi
     sinphi       = math.sin(PHI_2R)
     sinphi2      = sinphi*sinphi
     cosphisinphi = 2.0*cosphi*sinphi
-    A22          = params.req*params.req
-    B22          = params.rpol*params.rpol
+    A22          = state["req"]*state["req"]
+    B22          = state["rpol"]*state["rpol"]
     tmp0         = (cosphi*H2_TR + sinphi*K2_TR)/A22
     tmp1         = (sinphi*H2_TR - cosphi*K2_TR)/B22
     tmp2         = cosphi*H2_TR + sinphi*K2_TR
@@ -85,11 +85,11 @@ def qrt_coeff(params, H2, K2):
     #Create and solve the quartic equation to find intersection points.
     #If execution arrives here, the ellipses are atleast 'close' to intersecting.
     #Coefficients for the quartic polynomial in y are calculated from the two implicit equations. 
-    e = (params.rstar_eq**4.0)*AA*AA + params.rstar_pol*params.rstar_pol*(params.rstar_eq*params.rstar_eq*(BB*BB - 2.0*AA*CC) + params.rstar_pol*params.rstar_pol*CC*CC)
-    d = 2.0*params.rstar_pol*(params.rstar_pol*params.rstar_pol*CC*EE + params.rstar_eq*params.rstar_eq*(BB*DD - AA*EE))
-    c = params.rstar_eq*params.rstar_eq*((params.rstar_pol*params.rstar_pol*(2.0*AA*CC-BB*BB) + DD*DD - 2.0*AA*FF) - 2.0*params.rstar_eq*params.rstar_eq*AA*AA) + params.rstar_pol*params.rstar_pol*(2.0*CC*FF + EE*EE)
-    b = 2.0*params.rstar_pol*(params.rstar_eq*params.rstar_eq*(AA*EE - BB*DD) + EE*FF)
-    a = (params.rstar_eq*(params.rstar_eq*AA - DD) + FF)*(params.rstar_eq*(params.rstar_eq*AA + DD) + FF)
+    e = (state["rstar_eq"]**4.0)*AA*AA + state["rstar_pol"]*state["rstar_pol"]*(state["rstar_eq"]*state["rstar_eq"]*(BB*BB - 2.0*AA*CC) + state["rstar_pol"]*state["rstar_pol"]*CC*CC)
+    d = 2.0*state["rstar_pol"]*(state["rstar_pol"]*state["rstar_pol"]*CC*EE + state["rstar_eq"]*state["rstar_eq"]*(BB*DD - AA*EE))
+    c = state["rstar_eq"]*state["rstar_eq"]*((state["rstar_pol"]*state["rstar_pol"]*(2.0*AA*CC-BB*BB) + DD*DD - 2.0*AA*FF) - 2.0*state["rstar_eq"]*state["rstar_eq"]*AA*AA) + state["rstar_pol"]*state["rstar_pol"]*(2.0*CC*FF + EE*EE)
+    b = 2.0*state["rstar_pol"]*(state["rstar_eq"]*state["rstar_eq"]*(AA*EE - BB*DD) + EE*FF)
+    a = (state["rstar_eq"]*(state["rstar_eq"]*AA - DD) + FF)*(state["rstar_eq"]*(state["rstar_eq"]*AA + DD) + FF)
 
     e = np.full((H2.size, 1), e)
     
@@ -98,13 +98,13 @@ def qrt_coeff(params, H2, K2):
     
     return(cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR)
 
-def qrt_solve(cy, params):
+def qrt_solve(cy, state):
     """
     Solves the quartic equation (Eq. 15 in Hughes and Chraiabi 2011) for the intersection points of the two ellipses
 
     Args:
         cy: coefficients of the quartic equation
-        params: parameters of the transit model
+        state: parameters of the transit model
 
     Returns:
         nychk: number of real roots
@@ -164,7 +164,7 @@ def qrt_solve(cy, params):
     for i in range(1,nroots+1):
         if(abs(r[2][i])<(10**(-7))):
             nychk = nychk+1
-            ychk[nychk] = r[1][i]*params.rstar_pol
+            ychk[nychk] = r[1][i]*state["rstar_pol"]
     
     #Sort the real roots by straight insertion
     for j in range(2,nychk+1):
@@ -388,13 +388,13 @@ def ellipse2tr(x,y,AA,BB,CC,DD,EE,FF):
 
     return((AA*x*x) + (BB*x*y) + (CC*y*y) + (DD*x) + (EE*y) + (FF))
 
-def nointpts(params,H2_TR,K2_TR,FF):
+def nointpts(state, H2_TR,K2_TR,FF):
     """
     
     Routine for finding the area of the intersection of two ellipses when there are zero or one intersection points. 
     
     Args:
-        params: parameters of the transit model
+        state: parameters of the transit model
         H2_TR: x-coordinate of the center of the planet, translated and rotated
         K2_TR: y-coordinate of the center of the planet, translated and rotated
         FF: constant term
@@ -404,12 +404,12 @@ def nointpts(params,H2_TR,K2_TR,FF):
     """
 
     #The relative size of the two ellipses can be found from the axis lengths.
-    relsize = (params.rstar_eq*params.rstar_pol) - (params.req*params.rpol)
+    relsize = (state["rstar_eq"]*state["rstar_pol"]) - (state["req"]*state["rpol"])
     if(relsize>0.0):
         #First ellipse is larger than second ellipse. (star bigger than planet)
-        if(((H2_TR*H2_TR)/(params.rstar_eq*params.rstar_eq)+(K2_TR*K2_TR)/(params.rstar_pol*params.rstar_pol))<1.0):
+        if(((H2_TR*H2_TR)/(state["rstar_eq"]*state["rstar_eq"])+(K2_TR*K2_TR)/(state["rstar_pol"]*state["rstar_pol"]))<1.0):
             #Ellipse 2 is inside ellipse 1.
-            return (params.req*params.rpol)
+            return (state["req"]*state["rpol"])
         else:
             #Disjoint ellipses.
             return 0.0
@@ -417,22 +417,22 @@ def nointpts(params,H2_TR,K2_TR,FF):
         #Second ellipse is larger than first ellipse.
         if(FF<0.0):
             #Ellipse 1 inside ellipse 2.
-            return (params.rstar_eq*params.rstar_pol)
+            return (state["rstar_eq"]*state["rstar_pol"])
         else:
             #Disjoint ellipses.
             return 0.0
     else:
         #Ellipses are identical.
-        return (params.rstar_eq*params.rstar_pol)
+        return (state["rstar_eq"]*state["rstar_pol"])
 
-def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
+def twointpts(x,y,state, H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
     """
     Routine for finding the area of the intersection of two ellipses when there are two intersection points.
 
     Args:
         x: x-coordinates of the intersection points
         y: y-coordinates of the intersection points
-        params: parameters of the transit model
+        state: parameters of the transit model
         H2_TR: x-coordinate of the center of the planet, translated and rotated
         K2_TR: y-coordinate of the center of the planet, translated and rotated
         AA: coefficient of x^2
@@ -449,29 +449,29 @@ def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
 
     #Find the parametric angles for each point on ellipse 1.
 
-    # x intersection point is bounded by params.rstar_eq=[-1, 1]
-    if(abs(x[1])>params.rstar_eq):
+    # x intersection point is bounded by state["rstar_eq"]=[-1, 1]
+    if(abs(x[1])>state["rstar_eq"]):
         
         if(x[1]<0.0):
-            x[1] = -params.rstar_eq
+            x[1] = -state["rstar_eq"]
         else:
-            x[1] = params.rstar_eq
+            x[1] = state["rstar_eq"]
 
-    if(abs(x[2])>params.rstar_eq):
+    if(abs(x[2])>state["rstar_eq"]):
         if(x[2]<0.0):
-            x[2] = -params.rstar_eq
+            x[2] = -state["rstar_eq"]
         else:
-            x[2] = params.rstar_eq
+            x[2] = state["rstar_eq"]
 
     # calculate angle if yint in Q3 or Q4 
     if(y[1]<0.0):
-        theta1 = (2.0*math.pi) - math.acos(x[1]/params.rstar_eq)
+        theta1 = (2.0*math.pi) - math.acos(x[1]/state["rstar_eq"])
     else:
-        theta1 = math.acos(x[1]/params.rstar_eq)
+        theta1 = math.acos(x[1]/state["rstar_eq"])
     if(y[2]<0.0): #Quadrant III or IV
-        theta2 = (2.0*math.pi) - math.acos(x[2]/params.rstar_eq)
+        theta2 = (2.0*math.pi) - math.acos(x[2]/state["rstar_eq"])
     else:
-        theta2 = math.acos(x[2]/params.rstar_eq)
+        theta2 = math.acos(x[2]/state["rstar_eq"])
 
     
     #Logic is for proceeding counterclockwise from theta1 to theta2.
@@ -481,8 +481,8 @@ def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
         theta2 = tmp
         
     # midpoint between intersection points, on stellar boundary
-    xmid = params.rstar_eq*math.cos((theta1+theta2)/2.0)
-    ymid = params.rstar_pol*math.sin((theta1+theta2)/2.0)
+    xmid = state["rstar_eq"]*math.cos((theta1+theta2)/2.0)
+    ymid = state["rstar_pol"]*math.sin((theta1+theta2)/2.0)
     
     #The point (xmid,ymid) is on the first ellipse 'between' the two intersection points (x[1],y[1]) and (x[2],y[2]) when travelling counter-clockwise from (x[1],y[1]) to (x[2],y[2]). If the point (xmid,ymid) is inside the second ellipse, then the desired segment of ellipse 1 contains the point (xmid,ymid), so integrate counterclockwise from (x[1],y[1]) to (x[2],y[2]). Otherwise, integrate counterclockwise from (x[2],y[2]) to (x[1],y[1]).
     if(ellipse2tr(xmid,ymid,AA,BB,CC,DD,EE,FF)>0.0):
@@ -499,15 +499,15 @@ def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
     else:
         trsign = -1.0
                     
-    area1 = 0.5*(params.rstar_eq*params.rstar_pol*(theta2-theta1) + trsign*abs(x[1]*y[2]-x[2]*y[1]))
+    area1 = 0.5*(state["rstar_eq"]*state["rstar_pol"]*(theta2-theta1) + trsign*abs(x[1]*y[2]-x[2]*y[1]))
     
     if(area1<0):
-        area1 = area1+(params.rstar_eq*params.rstar_pol)
+        area1 = area1+(state["rstar_eq"]*state["rstar_pol"])
     
     #Find ellipse 2 segment area.
-    #The ellipse segment routine needs an ellipse that is centered at the origin and oriented with the coordinate axes. The intersection point (x[1],y[1]) and (x[2],y[2]) are found with both ellipses translated and rotated by (-params.pos_star[0],-params.pos_star[1]) and -params.phi_s. Further, translate and rotate the points to put the second ellipse at the origin and oriented with the coordinate axes. The translation is (-H2_TR,-K2_TR) and the rotation is -(params.phi_p-params.phi_s).
-    cosphi = math.cos(params.phi_s-params.phi_p)
-    sinphi = math.sin(params.phi_s-params.phi_p)
+    #The ellipse segment routine needs an ellipse that is centered at the origin and oriented with the coordinate axes. The intersection point (x[1],y[1]) and (x[2],y[2]) are found with both ellipses translated and rotated by (-state["pos_star"][0],-state["pos_star"][1]) and -state["phi_s"]. Further, translate and rotate the points to put the second ellipse at the origin and oriented with the coordinate axes. The translation is (-H2_TR,-K2_TR) and the rotation is -(state["phi_p"]-state["phi_s"]).
+    cosphi = math.cos(state["phi_s"]-state["phi_p"])
+    sinphi = math.sin(state["phi_s"]-state["phi_p"])
     
     # translated intersection points to center around origin
     x1_tr = (x[1]-H2_TR)*cosphi + (y[1]-K2_TR)*(-sinphi)
@@ -518,29 +518,29 @@ def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
     #Determine which branch of the ellipse to integrate by finding a point of the second ellipse and checking whether it is inside the first ellipse (in their once translated+rotated positions).
     #Find the parametric angles for each point on ellipse 1.
     
-    if(abs(x1_tr)>params.req):
+    if(abs(x1_tr)>state["req"]):
         
         if(x1_tr<0.0):
-            x1_tr = -params.req 
+            x1_tr = -state["req"] 
         else:
-            x1_tr = params.req
-    if(abs(x2_tr)>params.req):
+            x1_tr = state["req"]
+    if(abs(x2_tr)>state["req"]):
         
         if(x2_tr<0.0):
-            x2_tr = -params.req
+            x2_tr = -state["req"]
         else:
-            x2_tr = params.req
+            x2_tr = state["req"]
 
     # calculate angle if yint in Q3 or Q4   
     if(y1_tr<0.0): #Quadrant III or IV
-        theta1 = (2.0*math.pi)-math.acos(x1_tr/params.req)
+        theta1 = (2.0*math.pi)-math.acos(x1_tr/state["req"])
     else: #Quadrant I or II
-        theta1 = math.acos(x1_tr/params.req)
+        theta1 = math.acos(x1_tr/state["req"])
     
     if(y2_tr<0.0):
-        theta2 = (2.0*math.pi)-math.acos(x2_tr/params.req)
+        theta2 = (2.0*math.pi)-math.acos(x2_tr/state["req"])
     else: #Quadrant I or II
-        theta2 = math.acos(x2_tr/params.req)
+        theta2 = math.acos(x2_tr/state["req"])
     
     #Logic for proceeding counterclockwise from theta1 to theta2.
     if(theta1>theta2): # ensures theta2 > theta1
@@ -550,19 +550,19 @@ def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
 
 
     #Find a point on the second ellipse that is different from the two intersection points.
-    xmid = params.req*math.cos((theta1+theta2)/2.0)
-    ymid = params.rpol*math.sin((theta1+theta2)/2.0)
+    xmid = state["req"]*math.cos((theta1+theta2)/2.0)
+    ymid = state["rpol"]*math.sin((theta1+theta2)/2.0)
     
     
     #Translate the point back to the second ellipse in its once translated+rotated position.
-    cosphi  = math.cos(params.phi_p-params.phi_s)
-    sinphi  = math.sin(params.phi_p-params.phi_s)
+    cosphi  = math.cos(state["phi_p"]-state["phi_s"])
+    sinphi  = math.sin(state["phi_p"]-state["phi_s"])
     
     xmid_rt = xmid*cosphi + ymid*(-sinphi) + H2_TR
     ymid_rt = xmid*sinphi + ymid*(cosphi)  + K2_TR 
     
     #The point (xmid_rt,ymid_rt) is on the second ellipse 'between' the intersection points (x[1],y[1]) and (x[2],y[2]) when traveling counterclockwise from (x[1],y[1]) to (x[2],y[2]). If the point (xmid_rt,ymid_rt) is inside the first ellipse, then the desired segment of ellipse 2 contains the point (xmid_rt,ymid_rt), so integrate counterclockwise from (x[2],y[2]) to (x[1],y[1]).
-    if(((xmid_rt*xmid_rt)/(params.rstar_eq*params.rstar_eq) + (ymid_rt*ymid_rt)/(params.rstar_pol*params.rstar_pol))>1.0):
+    if(((xmid_rt*xmid_rt)/(state["rstar_eq"]*state["rstar_eq"]) + (ymid_rt*ymid_rt)/(state["rstar_pol"]*state["rstar_pol"]))>1.0):
         tmp    = theta1
         theta1 = theta2 
         theta2 = tmp
@@ -577,23 +577,23 @@ def twointpts(x,y,params,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
     else:
         trsign = -1.0
     
-    area2 = 0.5*(params.req*params.rpol*(theta2-theta1)+trsign*abs(x1_tr*y2_tr - x2_tr*y1_tr))
+    area2 = 0.5*(state["req"]*state["rpol"]*(theta2-theta1)+trsign*abs(x1_tr*y2_tr - x2_tr*y1_tr))
     
     if(area2<0.0):
-        area2 = area2+(params.req*params.rpol)
+        area2 = area2+(state["req"]*state["rpol"])
 
     #Two intersection points
 
     return ((area1+area2)/math.pi)
 
-def verify_roots(nychk, ychk, params, AA, BB, CC, DD, EE, FF):
+def verify_roots(nychk, ychk, state,  AA, BB, CC, DD, EE, FF):
     """
     Numerically verifies the roots of the quartic equation
 
     Args:
         nychk: number of real roots
         ychk: y-values of the intersection points of the two ellipses
-        params: parameters of the transit model
+        state: parameters of the transit model
         AA: coefficient of x^2
         BB: coefficient of xy
         CC: coefficient of y^2
@@ -622,10 +622,10 @@ def verify_roots(nychk, ychk, params, AA, BB, CC, DD, EE, FF):
                 continue
             
         #check intersection points for ychk[i]
-        if(abs(ychk[i])>params.rstar_pol):
+        if(abs(ychk[i])>state["rstar_pol"]):
             x1 = 0.0
         else:
-            x1 = params.rstar_eq*((1.0-(ychk[i]*ychk[i])/(params.rstar_pol*params.rstar_pol))**0.5)
+            x1 = state["rstar_eq"]*((1.0-(ychk[i]*ychk[i])/(state["rstar_pol"]*state["rstar_pol"]))**0.5)
         x2 = -x1
 
         if(abs(ellipse2tr(x1,ychk[i],AA,BB,CC,DD,EE,FF))<(10**(-6))):
