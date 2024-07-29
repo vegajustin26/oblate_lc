@@ -174,7 +174,10 @@ def flux_driver(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
     # oblate planet
     if (state["u"][0] or state["u"][1]) == 0: # if no limb-darkening
         area = oblate_uniform(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR)
-        return(1 - area)
+        if state["only_nintpts"] == True:
+            return(area)
+        elif state["only_nintpts"] == False:
+            return(1 - area)
     elif (state["u"][0] and state["u"][1]) > 0:  # if limb-darkening
         raise Exception("No support for limb-darkening, please set state["u"] to [0, 0]")
 
