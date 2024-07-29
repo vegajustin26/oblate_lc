@@ -9,7 +9,7 @@ def overlap_area(nintpts, xint, yint, state, H2_TR, K2_TR, AA, BB, CC, DD, EE, F
         nintpts: number of intersection points
         xint: x-coordinates of the intersection points
         yint: y-coordinates of the intersection points
-        state: parameters of the transit model
+        params: parameters of the transit model
         H2_TR: x-coordinate of the center of the planet, translated and rotated
         K2_TR: y-coordinate of the center of the planet, translated and rotated
         AA: coefficient of x^2
@@ -35,7 +35,7 @@ def qrt_coeff(state, H2, K2):
     Calculates the coefficients of Equation 15 in Hughes and Chraibi 2011
 
     Args:
-        state: parameters of the transit model
+        params: parameters of the transit model
         H2: x-coordinate of the center of the planet
         K2: y-coordinate of the center of the planet
 
@@ -104,7 +104,7 @@ def qrt_solve(cy, state):
 
     Args:
         cy: coefficients of the quartic equation
-        state: parameters of the transit model
+        params: parameters of the transit model
 
     Returns:
         nychk: number of real roots
@@ -394,7 +394,7 @@ def nointpts(state, H2_TR,K2_TR,FF):
     Routine for finding the area of the intersection of two ellipses when there are zero or one intersection points. 
     
     Args:
-        state: parameters of the transit model
+        params: parameters of the transit model
         H2_TR: x-coordinate of the center of the planet, translated and rotated
         K2_TR: y-coordinate of the center of the planet, translated and rotated
         FF: constant term
@@ -432,7 +432,7 @@ def twointpts(x,y,state, H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
     Args:
         x: x-coordinates of the intersection points
         y: y-coordinates of the intersection points
-        state: parameters of the transit model
+        params: parameters of the transit model
         H2_TR: x-coordinate of the center of the planet, translated and rotated
         K2_TR: y-coordinate of the center of the planet, translated and rotated
         AA: coefficient of x^2
@@ -593,7 +593,7 @@ def verify_roots(nychk, ychk, state,  AA, BB, CC, DD, EE, FF):
     Args:
         nychk: number of real roots
         ychk: y-values of the intersection points of the two ellipses
-        state: parameters of the transit model
+        params: parameters of the transit model
         AA: coefficient of x^2
         BB: coefficient of xy
         CC: coefficient of y^2

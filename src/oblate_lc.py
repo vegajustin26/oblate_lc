@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import math
 from orbit import on_sky
 from ferrari_solve import overlap_area, qrt_coeff, qrt_solve, verify_roots
-import copy
 
 class PlanetSystem:
     """
@@ -74,7 +73,8 @@ class PlanetSystem:
         phi_p = 0,      # obliquity angle of planet
         phi_s = 0,          # obliquity angle of star
         pos_star = (0, 0),  # position of star
-        omega = None):      # argument of periapsis (in radians)
+        omega = None,       # argument of periapsis (in radians)
+        only_nintpts = False):      # intersection points flag
 
         state_keys = list(locals().keys())
         state_keys.remove("self")
@@ -96,13 +96,9 @@ class PlanetSystem:
 
         if self._state["b"] is not None and self._state["a"] is not None:
             self._state["inc"] = math.acos(self._state["b"]/self._state["a"]) # in radians
-            
-    # def state(self):
-    #     return(copy.deepcopy(self._state))
 
     def lightcurve(self, params={}):
         return(_lightcurve(state = self._state, params = params))
-
 
 def _lightcurve(state, params={}):
     """
@@ -130,14 +126,18 @@ def _lightcurve(state, params={}):
     
     dist = np.linalg.norm(np.stack((X, Y), axis = 1), axis = 1)
 
-    for i in range(0, len(X)):
-        overlap_area, intpts = flux_driver(state, dist[i], cy[i].tolist(), AA, BB, CC, DD[i], EE[i], FF[i], H2_TR[i], K2_TR[i])
-        fluxratio.append(1 - overlap_area)
-        nintpts.append(intpts)
-    
-    return np.array(fluxratio), np.array(nintpts)
+    if state["only_nintpts"] == True:
+        for i in range(0, len(X)):
+            nintpts.append(flux_driver(state, dist[i], cy[i].tolist(), AA, BB, CC, DD[i], EE[i], FF[i], H2_TR[i], K2_TR[i]))
+    else:
+        for i in range(0, len(X)):
+            fluxratio.append(flux_driver(state, dist[i], cy[i].tolist(), AA, BB, CC, DD[i], EE[i], FF[i], H2_TR[i], K2_TR[i]))
 
-## main flux driving function
+    if nintpts:
+        return np.array(nintpts)
+    else:
+        return np.array(fluxratio)
+
 def flux_driver(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
     """
     Main function that drives the flux calculation
@@ -173,8 +173,8 @@ def flux_driver(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
     
     # oblate planet
     if (state["u"][0] or state["u"][1]) == 0: # if no limb-darkening
-        area, nintpts = oblate_uniform(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR)
-        return(area, nintpts)
+        area = oblate_uniform(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR)
+        return(1 - area)
     elif (state["u"][0] and state["u"][1]) > 0:  # if limb-darkening
         raise Exception("No support for limb-darkening, please set state["u"] to [0, 0]")
 
@@ -195,28 +195,25 @@ def oblate_uniform(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
 
     if s > (state["rstar_eq"] + state["req"]): # case 1
         nintpts = 0
-        xint = None
-        yint = None
-
-        OverlapArea = overlap_area(nintpts, xint, yint, state,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF)
+        xint, yint = None, None
 
     elif (state["rstar_eq"] - state["req"]) < s < (state["rstar_eq"] + state["req"]): # case 2, 3, 4 combined
         nychk, ychk = qrt_solve(cy, state)
         nintpts, xint, yint = verify_roots(nychk, ychk, state, AA, BB, CC, DD, EE, FF)
-        OverlapArea = overlap_area(nintpts, xint, yint, state,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF)    
 
     elif s < (state["rstar_eq"] - state["req"]): # case 5
-        
         nintpts = 0
-        xint = None
-        yint = None
-        OverlapArea = overlap_area(nintpts, xint, yint, state,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF)
+        xint, yint = None, None
 
     else:
         # definite error
         return(0)
 
-    return(OverlapArea, nintpts)
+    if state["only_nintpts"] == True:
+        return(nintpts)
+    else:
+        OverlapArea = overlap_area(nintpts, xint, yint, state,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF)
+        return(OverlapArea)
 
 
 def viz(state, PHI, H2, K2, mode):
