@@ -126,17 +126,16 @@ def _lightcurve(state, params={}):
     
     dist = np.linalg.norm(np.stack((X, Y), axis = 1), axis = 1)
 
+    for i in range(0, len(X)):
+        flux, nintpt = flux_driver(state, dist[i], cy[i].tolist(), AA, BB, CC, DD[i], EE[i], FF[i], H2_TR[i], K2_TR[i])
+        fluxratio.append(flux)
+        nintpts.append(nintpt)
+    
     if state["only_nintpts"] == True:
-        for i in range(0, len(X)):
-            nintpts.append(flux_driver(state, dist[i], cy[i].tolist(), AA, BB, CC, DD[i], EE[i], FF[i], H2_TR[i], K2_TR[i]))
+        return(nintpts)
     else:
-        for i in range(0, len(X)):
-            fluxratio.append(flux_driver(state, dist[i], cy[i].tolist(), AA, BB, CC, DD[i], EE[i], FF[i], H2_TR[i], K2_TR[i]))
+        return(fluxratio, nintpts)
 
-    if nintpts:
-        return np.array(nintpts)
-    else:
-        return np.array(fluxratio)
 
 def flux_driver(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
     """
@@ -173,11 +172,11 @@ def flux_driver(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
     
     # oblate planet
     if (state["u"][0] or state["u"][1]) == 0: # if no limb-darkening
-        area = oblate_uniform(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR)
+        area, nintpts = oblate_uniform(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR)
         if state["only_nintpts"] == True:
             return(area)
         elif state["only_nintpts"] == False:
-            return(1 - area)
+            return(1 - area, nintpts)
     elif (state["u"][0] and state["u"][1]) > 0:  # if limb-darkening
         raise Exception("No support for limb-darkening, please set state["u"] to [0, 0]")
 
@@ -208,15 +207,12 @@ def oblate_uniform(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
         nintpts = 0
         xint, yint = None, None
 
-    else:
-        # definite error
-        return(0)
-
     if state["only_nintpts"] == True:
-        return(nintpts)
+        OverlapArea = None
     else:
         OverlapArea = overlap_area(nintpts, xint, yint, state,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF)
-        return(OverlapArea)
+    
+    return(OverlapArea, nintpts)
 
 
 def viz(state, PHI, H2, K2, mode):
