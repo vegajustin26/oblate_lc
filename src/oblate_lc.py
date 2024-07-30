@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 from orbit import on_sky
-from ferrari_solve import overlap_area, qrt_coeff, qrt_solve, verify_roots
+from ferrari_solve import overlap_area, qrt_coeff, qrt_solve, verify_roots, numpy_solve
 
 class PlanetSystem:
     """
@@ -123,8 +123,12 @@ def _lightcurve(state, params={}):
         state["rpol"] = state["req"]
 
     cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR = qrt_coeff(state, X, Y)
+    dist = np.linalg.norm(np.array((X.T, Y.T)), axis = 0)
     
-    dist = np.linalg.norm(np.stack((X, Y), axis = 1), axis = 1)
+    if isinstance(dist, np.ndarray) != True: # if dist is a scalar
+        cy = cy[0]
+        flux, nintpt = flux_driver(state, dist, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR)
+        return(flux)
 
     for i in range(0, len(X)):
         flux, nintpt = flux_driver(state, dist[i], cy[i].tolist(), AA, BB, CC, DD[i], EE[i], FF[i], H2_TR[i], K2_TR[i])
@@ -200,7 +204,9 @@ def oblate_uniform(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
         xint, yint = None, None
 
     elif (state["rstar_eq"] - state["req"]) < s < (state["rstar_eq"] + state["req"]): # case 2, 3, 4 combined
-        nychk, ychk = qrt_solve(cy, state)
+        nychk, ychk = numpy_solve(cy)
+        
+        # nychk, ychk = qrt_solve(cy, state)
         nintpts, xint, yint = verify_roots(nychk, ychk, state, AA, BB, CC, DD, EE, FF)
 
     elif s < (state["rstar_eq"] - state["req"]): # case 5

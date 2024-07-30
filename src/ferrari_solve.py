@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from numpy.polynomial import Polynomial
 
 def overlap_area(nintpts, xint, yint, state, H2_TR, K2_TR, AA, BB, CC, DD, EE, FF):
     """
@@ -111,19 +112,19 @@ def qrt_solve(cy, state):
         ychk: y-values of the intersection points of the two ellipses
 
     """
-
+    print(f"cy: {cy}")
     py = [0] * 5
     r  = [[0.0,0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0,0.0]]
     
-    if(abs(cy[4]) > 0.0): # if first coefficient not zero
+    if(abs(cy[4]) > 0.0): # if first coefficient not zero (most common case)
 
         #Quartic coefficient nonzero -> use quartic formula
         for i in range(0,4):
             py[4-i] = cy[i]/cy[4]
         py[0] = 1.0
-
+        print(f"py: {py}")
         BIQUADROOTS(py,r)
-        # print("r {}".format(r))
+        print("r {}".format(r))
         nroots = 4
     
     elif(abs(cy[3])>0.0):
@@ -177,196 +178,217 @@ def qrt_solve(cy, state):
     
     return(nychk, ychk) 
 
-def QUADROOTS(p,r):
-    """
-    QUADROOTS numerically solves the quadratic equation p[0]*x^2 + p[1]*x + p[2] = 0 for real roots x.
+def numpy_solve(cy):
+    # div = cy[-1]
+    # cy = np.flip(cy)/div
+    py = np.flip(np.array(cy)/cy[-1])
+    # print("py: ", py)
+    # roots = Polynomial(py).roots()
+    roots = np.roots(py)
+    # print("roots: ", roots)
+    # discard complex roots
+    mask = ~np.iscomplex(roots)
+    roots = np.real(roots[mask])
+    nychk = len(roots)
     
-    Args:
-        p: coefficients of the quadratic equation
-        r: roots of the quadratic equation
-
-    Returns:
-        r: roots of the quadratic equation
-    """
-
-    b = -p[1]/(2.0*p[0])
-    c = p[2]/p[0]
-    d = b*b - c
+    if nychk == 0:
+        roots = [0, 0, 0, 0]
     
-    if(d>=0.0):
-        if(b>0.0):
-            r[1][2]=(d**0.5+b)
-            b = r[1][2]
-        else:
-            r[1][2]=(-(d)**0.5+b)
-            b = r[1][2]
-        r[1][1] = c/b
-        r[2][2] = 0.0
-        r[2][1] = r[2][2]
-    else:
-        r[2][1]=(-d)**0.5
-        d = r[2][1]
-        r[2][2] = -d
-        r[1][2] = b
-        r[1][1] = r[1][2]
-    return
+    return(nychk, roots)
 
-def CUBICROOTS(p,r):
-    """
-    CUBICROOTS solves the cubic equation p[0]*x^3 + p[1]*x^2 + p[2]*x + p[3] = 0 for real roots x.
 
-    Args:
-        p: coefficients of the cubic equation
-        r: roots of the cubic equation
 
-    Returns:
-        r: roots of the cubic equation
 
-    """
-
-    if(p[0] != 1.0):
-        for k in range(1,5):
-            p[k] = p[k]/p[0]
-        p[0] = 1.0
-    s = p[1]/3.0
-    t = s*p[1]
-    b = 0.5*(s*(t/1.5-p[2])+p[3])
-    t = (t-p[2])/3.0
-    c = t*t*t
-    d = b*b - c
-    if(d>=0.0):
-        d = ((d**0.5)+abs(b))**(1.0/3.0)
-        if(d!=0.0):
-            if(b>0.0):
-                b = -d
-            else:
-                b = d
-            c = t/b
-        r[2][2] = ((0.75)**(0.5))*(b-c)
-        d = r[2][2]
-        b = b+c
-        r[1][2] = -0.5*b-s
-        c = r[1][2]
-        if((b>0.0 and s<=0.0) or (b<0.0 and s>0.0)):
-            r[1][1] = c
-            r[2][1] = -d
-            r[1][3] = b-s
-            r[2][3] = 0.0
-        else:
-            r[1][1] = b-s
-            r[2][1] = 0.0
-            r[1][3] = c
-            r[2][3] = -d
-    else:
-        if(b == 0.0):
-            d = math.atan(1.0)/1.5
-        else:
-            d = math.atan(((-d)**(0.5))/abs(b))/3.0
-        if(b<0.0):
-            b = (t**(0.5))*2.0
-        else:
-            b = -2.0*(t**(0.5))
-        c = math.cos(d)*b
-        t = -((0.75)**(0.5))*math.sin(d)*b - 0.5*c
-        d = -t-c-s
-        c = c-s
-        t = t-s
-        if(abs(c)>abs(t)):
-            r[1][3] = c
-        else:
-            r[1][3] = t
-            t = c
-        if(abs(d)>abs(t)):
-            r[1][2] = d
-        else:
-            r[1][2] = t
-            t       = d
-        r[1][1] = t
-        for k in range(1,5):
-            r[2][k] = 0.0
-    return
-
-def quad(c,b,p,r,e):
-    """
-    helper function for QUADROOTS
-    """
-
-    p[2] = c/b
-    QUADROOTS(p,r)
-    for k in range(1,3):
-        for j in range(1,3):
-            r[j][k+2] = r[j][k]
-    p[1] = -p[1]
-    p[2] = b
-    QUADROOTS(p,r)
-    for k in range(1,5):
-        r[1][k] = r[1][k] - e
-    return 
-
-def BIQUADROOTS(p,r):
-    """
-    BIQUADROOTS solves the quartic equation p[0]*x^4 + p[1]*x^3 + p[2]*x^2 + p[3]*x + p[4] = 0 for real roots x.
-
-    Args:
-        p: coefficients of the quartic equation
-        r: roots of the quartic equation
-
-    Returns:
-        r: roots of the quartic equation
-
-    """
+# def QUADROOTS(p,r):
+#     """
+#     QUADROOTS numerically solves the quadratic equation p[0]*x^2 + p[1]*x + p[2] = 0 for real roots x.
     
-    if(p[0] != 1.0):
-        for k in range(1,5):
-            p[k] = p[k]/p[0]
-        p[0] = 1.0
-    e    = 0.25*p[1]
-    b    = 2.0*e
-    c    = b*b
-    d    = 0.75*c
-    b    = p[3]+b*(c-p[2])
-    a    = p[2]-d
-    c    = p[4]+e*(e*a-p[3])
-    a    = a-d
-    p[1] = 0.5*a
-    p[2] = (p[1]*p[1]-c)*0.25
-    p[3] = b*b/(-64.0)
+#     Args:
+#         p: coefficients of the quadratic equation
+#         r: roots of the quadratic equation
 
-    if(p[3]<0.0):
-        CUBICROOTS(p,r)
-        for k in range(1,4):
-            if(r[2][k]==0.0 and r[1][k]>0.0):
-                d = r[1][k]*4.0
-                a = a+d
-                if(a>=0.0 and b>=0.0):
-                    p[1] = d**(0.5)
-                elif(a<=0 and b<=0.0):
-                    p[1] = d**(0.5)
-                else:
-                    p[1] = -(d)**(0.5)
-                b = 0.5*(a+b/p[1])
-                quad(c,b,p,r,e)
-                return
+#     Returns:
+#         r: roots of the quadratic equation
+#     """
 
-    if(p[2]<0.0):
-        b    = c**(0.5)
-        d    = b+b-a
-        p[1] = 0.0
-        if(d>0.0):
-            p[1] = d**(0.5)
-    else:
-        if(p[1]>0.0):
-            b = ((p[2])**(0.5))*2.0 + p[1]
-        else:
-            b = -((p[2])**(0.5))*2.0 + p[1]
-        if(b != 0.0):
-            p[1] = 0.0
-        else:
-            for k in range(1,5):
-                r[1][k] = -e
-                r[2][k] = 0.0
-            return
-    quad(c,b,p,r,e)
+#     b = -p[1]/(2.0*p[0])
+#     c = p[2]/p[0]
+#     d = b*b - c
+    
+#     if(d>=0.0):
+#         if(b>0.0):
+#             r[1][2]=(d**0.5+b)
+#             b = r[1][2]
+#         else:
+#             r[1][2]=(-(d)**0.5+b)
+#             b = r[1][2]
+#         r[1][1] = c/b
+#         r[2][2] = 0.0
+#         r[2][1] = r[2][2]
+#     else:
+#         r[2][1]=(-d)**0.5
+#         d = r[2][1]
+#         r[2][2] = -d
+#         r[1][2] = b
+#         r[1][1] = r[1][2]
+#     return
+
+# def CUBICROOTS(p,r):
+#     """
+#     CUBICROOTS solves the cubic equation p[0]*x^3 + p[1]*x^2 + p[2]*x + p[3] = 0 for real roots x.
+
+#     Args:
+#         p: coefficients of the cubic equation
+#         r: roots of the cubic equation
+
+#     Returns:
+#         r: roots of the cubic equation
+
+#     """
+
+#     if(p[0] != 1.0):
+#         for k in range(1,5):
+#             p[k] = p[k]/p[0]
+#         p[0] = 1.0
+#     s = p[1]/3.0
+#     t = s*p[1]
+#     b = 0.5*(s*(t/1.5-p[2])+p[3])
+#     t = (t-p[2])/3.0
+#     c = t*t*t
+#     d = b*b - c
+#     if(d>=0.0):
+#         d = ((d**0.5)+abs(b))**(1.0/3.0)
+#         if(d!=0.0):
+#             if(b>0.0):
+#                 b = -d
+#             else:
+#                 b = d
+#             c = t/b
+#         r[2][2] = ((0.75)**(0.5))*(b-c)
+#         d = r[2][2]
+#         b = b+c
+#         r[1][2] = -0.5*b-s
+#         c = r[1][2]
+#         if((b>0.0 and s<=0.0) or (b<0.0 and s>0.0)):
+#             r[1][1] = c
+#             r[2][1] = -d
+#             r[1][3] = b-s
+#             r[2][3] = 0.0
+#         else:
+#             r[1][1] = b-s
+#             r[2][1] = 0.0
+#             r[1][3] = c
+#             r[2][3] = -d
+#     else:
+#         if(b == 0.0):
+#             d = math.atan(1.0)/1.5
+#         else:
+#             d = math.atan(((-d)**(0.5))/abs(b))/3.0
+#         if(b<0.0):
+#             b = (t**(0.5))*2.0
+#         else:
+#             b = -2.0*(t**(0.5))
+#         c = math.cos(d)*b
+#         t = -((0.75)**(0.5))*math.sin(d)*b - 0.5*c
+#         d = -t-c-s
+#         c = c-s
+#         t = t-s
+#         if(abs(c)>abs(t)):
+#             r[1][3] = c
+#         else:
+#             r[1][3] = t
+#             t = c
+#         if(abs(d)>abs(t)):
+#             r[1][2] = d
+#         else:
+#             r[1][2] = t
+#             t       = d
+#         r[1][1] = t
+#         for k in range(1,5):
+#             r[2][k] = 0.0
+#     return
+
+# def quad(c,b,p,r,e):
+#     """
+#     helper function for QUADROOTS
+#     """
+
+#     p[2] = c/b
+#     QUADROOTS(p,r)
+#     for k in range(1,3):
+#         for j in range(1,3):
+#             r[j][k+2] = r[j][k]
+#     p[1] = -p[1]
+#     p[2] = b
+#     QUADROOTS(p,r)
+#     for k in range(1,5):
+#         r[1][k] = r[1][k] - e
+#     return 
+
+# def BIQUADROOTS(p,r):
+#     """
+#     BIQUADROOTS solves the quartic equation p[0]*x^4 + p[1]*x^3 + p[2]*x^2 + p[3]*x + p[4] = 0 for real roots x.
+
+#     Args:
+#         p: coefficients of the quartic equation
+#         r: roots of the quartic equation
+
+#     Returns:
+#         r: roots of the quartic equation
+
+#     """
+    
+#     if(p[0] != 1.0):
+#         for k in range(1,5):
+#             p[k] = p[k]/p[0]
+#         p[0] = 1.0
+#     e    = 0.25*p[1]
+#     b    = 2.0*e
+#     c    = b*b
+#     d    = 0.75*c
+#     b    = p[3]+b*(c-p[2])
+#     a    = p[2]-d
+#     c    = p[4]+e*(e*a-p[3])
+#     a    = a-d
+#     p[1] = 0.5*a
+#     p[2] = (p[1]*p[1]-c)*0.25
+#     p[3] = b*b/(-64.0)
+
+#     if(p[3]<0.0):
+#         CUBICROOTS(p,r)
+#         for k in range(1,4):
+#             if(r[2][k]==0.0 and r[1][k]>0.0):
+#                 d = r[1][k]*4.0
+#                 a = a+d
+#                 if(a>=0.0 and b>=0.0):
+#                     p[1] = d**(0.5)
+#                 elif(a<=0 and b<=0.0):
+#                     p[1] = d**(0.5)
+#                 else:
+#                     p[1] = -(d)**(0.5)
+#                 b = 0.5*(a+b/p[1])
+#                 quad(c,b,p,r,e)
+#                 return
+
+#     if(p[2]<0.0):
+#         b    = c**(0.5)
+#         d    = b+b-a
+#         p[1] = 0.0
+#         if(d>0.0):
+#             p[1] = d**(0.5)
+#     else:
+#         if(p[1]>0.0):
+#             b = ((p[2])**(0.5))*2.0 + p[1]
+#         else:
+#             b = -((p[2])**(0.5))*2.0 + p[1]
+#         if(b != 0.0):
+#             p[1] = 0.0
+#         else:
+#             for k in range(1,5):
+#                 r[1][k] = -e
+#                 r[2][k] = 0.0
+#             return
+#     quad(c,b,p,r,e)
 
 def ellipse2tr(x,y,AA,BB,CC,DD,EE,FF):
     """
@@ -586,7 +608,7 @@ def twointpts(x,y,state, H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
 
     return ((area1+area2)/math.pi)
 
-def verify_roots(nychk, ychk, state,  AA, BB, CC, DD, EE, FF):
+def verify_roots(nychk, ychk, state, AA, BB, CC, DD, EE, FF):
     """
     Numerically verifies the roots of the quartic equation
 
@@ -606,12 +628,13 @@ def verify_roots(nychk, ychk, state,  AA, BB, CC, DD, EE, FF):
         xint: x-coordinates of the intersection points
         yint: y-coordinates of the intersection points
     """
-
+    # print(f"ychk: {ychk}")
+    # print(f"nychk: {nychk}")
     nintpts = 0
     xint = [0] * (nychk + 1)
     yint = [0] * (nychk + 1)
     
-    for i in range(1,nychk+1):
+    for i in range(0,nychk): # for some reason, nychk is padded?
         #check for multiple roots
         m = 0
         if(i>1):
@@ -622,25 +645,29 @@ def verify_roots(nychk, ychk, state,  AA, BB, CC, DD, EE, FF):
                 continue
             
         #check intersection points for ychk[i]
-        if(abs(ychk[i])>state["rstar_pol"]):
+        if(abs(ychk[i])> state["rstar_pol"]): # will always be the case for rstar_pol ~ 1
             x1 = 0.0
         else:
             x1 = state["rstar_eq"]*((1.0-(ychk[i]*ychk[i])/(state["rstar_pol"]*state["rstar_pol"]))**0.5)
         x2 = -x1
 
-        if(abs(ellipse2tr(x1,ychk[i],AA,BB,CC,DD,EE,FF))<(10**(-6))):
-            nintpts = nintpts + 1
+        # print(f"ellipse2tr: {abs(ellipse2tr(x2,ychk[i],AA,BB,CC,DD,EE,FF))}")
+        if(abs(ellipse2tr(x1,ychk[i],AA,BB,CC,DD,EE,FF))<(1e-6)):
+            nintpts += 1
             if(nintpts>4):
                 #Error in intersection points
                 return -3.0
             xint[nintpts] = x1
             yint[nintpts] = ychk[i]
 
-        if(abs(ellipse2tr(x2,ychk[i],AA,BB,CC,DD,EE,FF))<(10**(-6)) and abs(x2-x1)>(10**(-6))):
-            nintpts = nintpts+1
+        if(abs(ellipse2tr(x2,ychk[i],AA,BB,CC,DD,EE,FF))<(1e-6) and abs(x2-x1)>(1e-6)): # most roots go through here
+            nintpts += 1
             if(nintpts>4):
                 #Error in intersection points
                 return -4.0
             xint[nintpts] = x2
             yint[nintpts] = ychk[i]
+    # print(f"xint: {xint}")
+    # print(f"yint: {yint}")
+    # print()
     return(nintpts, xint, yint)
