@@ -132,9 +132,9 @@ def _lightcurve(state, params={}):
         nintpts.append(nintpt)
     
     if state["only_nintpts"] == True:
-        return(nintpts)
+        return(np.array(nintpts))
     else:
-        return(fluxratio, nintpts)
+        return(np.array(fluxratio), np.array(nintpts))
 
 
 def flux_driver(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
