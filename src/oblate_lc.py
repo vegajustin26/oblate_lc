@@ -2,7 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 from orbit import on_sky
-from ferrari_solve import overlap_area, qrt_coeff, qrt_solve, verify_roots, numpy_solve
+from ferrari_solve import overlap_area, qrt_coeff, verify_roots, numpy_solve, jax_solve, jax_qrt_coeff
+import jax
+jax.config.update("jax_enable_x64", True)
 
 class PlanetSystem:
     """
@@ -122,7 +124,19 @@ def _lightcurve(state, params={}):
     if state["rpol"] is None:
         state["rpol"] = state["req"]
 
-    cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR = qrt_coeff(state, X, Y)
+    # cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR = qrt_coeff(state, X, Y)
+    cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR = jax.vmap(jax_qrt_coeff, in_axes = (None, 0, 0))(state, X, Y)
+    
+    cy = np.reshape(np.array(cy), (len(X), 5))
+    AA = np.array(AA)
+    BB = np.array(BB)
+    CC = np.array(CC)
+    DD = np.array(DD)
+    EE = np.array(EE)
+    FF = np.array(FF)
+    H2_TR = np.array(H2_TR)
+    K2_TR = np.array(K2_TR)
+    
     dist = np.linalg.norm(np.array((X.T, Y.T)), axis = 0)
     
     if isinstance(dist, np.ndarray) != True: # if dist is a scalar
@@ -131,7 +145,7 @@ def _lightcurve(state, params={}):
         return(flux)
 
     for i in range(0, len(X)):
-        flux, nintpt = flux_driver(state, dist[i], cy[i].tolist(), AA, BB, CC, DD[i], EE[i], FF[i], H2_TR[i], K2_TR[i])
+        flux, nintpt = flux_driver(state, dist[i], cy[i], AA[i], BB[i], CC[i], DD[i], EE[i], FF[i], H2_TR[i], K2_TR[i])
         fluxratio.append(flux)
         nintpts.append(nintpt)
     

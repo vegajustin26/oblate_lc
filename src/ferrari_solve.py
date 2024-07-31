@@ -1,6 +1,8 @@
 import math
 import numpy as np
-from numpy.polynomial import Polynomial
+import jax.numpy as jnp
+import jax
+jax.config.update("jax_enable_x64", True)
 
 def overlap_area(nintpts, xint, yint, state, H2_TR, K2_TR, AA, BB, CC, DD, EE, FF):
     """
@@ -99,104 +101,183 @@ def qrt_coeff(state, H2, K2):
     
     return(cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR)
 
-def qrt_solve(cy, state):
+@jax.jit
+def jax_qrt_coeff(state, H2, K2):
     """
-    Solves the quartic equation (Eq. 15 in Hughes and Chraiabi 2011) for the intersection points of the two ellipses
+    Calculates the coefficients of Equation 15 in Hughes and Chraibi 2011
 
     Args:
-        cy: coefficients of the quartic equation
         params: parameters of the transit model
+        H2: x-coordinate of the center of the planet
+        K2: y-coordinate of the center of the planet
 
     Returns:
-        nychk: number of real roots
-        ychk: y-values of the intersection points of the two ellipses
-
+        cy: coefficients of the quartic equation
+        AA: coefficient of x^2
+        BB: coefficient of xy
+        CC: coefficient of y^2
+        DD: coefficient of x
+        EE: coefficient of y
+        FF: constant term
+        H2_TR: x-coordinate of the center of the planet, translated and rotated
+        K2_TR: y-coordinate of the center of the planet, translated and rotated
     """
-    print(f"cy: {cy}")
-    py = [0] * 5
-    r  = [[0.0,0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0,0.0]]
+
+    cosphi = jnp.cos(state["phi_s"])
+    sinphi = jnp.sin(state["phi_s"])
+    H2_TR  = (H2-state["pos_star"][0])*cosphi + (K2-state["pos_star"][1])*sinphi
+    K2_TR  = (state["pos_star"][0]-H2)*sinphi + (K2-state["pos_star"][1])*cosphi
+    PHI_2R = state["phi_p"] - state["phi_s"]
+    PHI_2R = jnp.where(abs(PHI_2R)>(2*jnp.pi), PHI_2R%(2*jnp.pi), PHI_2R)
     
-    if(abs(cy[4]) > 0.0): # if first coefficient not zero (most common case)
-
-        #Quartic coefficient nonzero -> use quartic formula
-        for i in range(0,4):
-            py[4-i] = cy[i]/cy[4]
-        py[0] = 1.0
-        print(f"py: {py}")
-        BIQUADROOTS(py,r)
-        print("r {}".format(r))
-        nroots = 4
+    # if(abs(PHI_2R)>(2*jnp.pi)):
+    #     PHI_2R = PHI_2R%(2*jnp.pi)
     
-    elif(abs(cy[3])>0.0):
-
-        #Quartic degenerates to cubic -> use cubic formula
-        for i in range(0,3):
-            py[3-i] = cy[i]/cy[3]
-        py[0] = 1.0
-
-        CUBICROOTS(py,r)
-        nroots = 3
-        
-    elif(abs(cy[2])>0.0):
-
-        #Quartic degenerates to quadratic -> use quadratic formula
-        for i in range(0,2):
-            py[2-i] = cy[i]/cy[2]
-        py[0] = 1.0
-        
-        QUADROOTS(py,r)
-        nroots = 2
-        
-    elif(abs(cy[1])>0.0):
-
-        #Quartic degenerates to linear -> solve directly
-        #cy[1]*Y + cy[0] = 0
-        
-        r[1][1] = (-cy[0]/cy[1])
-        r[2][1] = 0.0
-        nroots = 1
-    else:
-        # Ellipses are identical
-        nroots = 0
-
-    #Determine which roots are real; discard any complex roots
-    nychk = 0
-    ychk = [0] * (nroots+1)
-    for i in range(1,nroots+1):
-        if(abs(r[2][i])<(10**(-7))):
-            nychk = nychk+1
-            ychk[nychk] = r[1][i]*state["rstar_pol"]
+    #Calculate the (implicit) polynomial coefficients for the second ellipse in its translated (by (-state["pos_star"][0],-H2)) and rotated (by -phi_1) position: AA*x^2 + BB*x*y + CC*y^2 + DD*x + EE*y + FF = 0
     
-    #Sort the real roots by straight insertion
-    for j in range(2,nychk+1):
-        tmp0 = ychk[j]
-        for k in range(j-1,0,-1):
-            if(ychk[k] <= tmp0):
-                break
-            ychk[k+1] = ychk[k]
-        ychk[k+1] = tmp0
+    cosphi       = jnp.cos(PHI_2R)
+    cosphi2      = cosphi*cosphi
+    sinphi       = jnp.sin(PHI_2R)
+    sinphi2      = sinphi*sinphi
+    cosphisinphi = 2.0*cosphi*sinphi
+    A22          = state["req"]*state["req"]
+    B22          = state["rpol"]*state["rpol"]
+    tmp0         = (cosphi*H2_TR + sinphi*K2_TR)/A22
+    tmp1         = (sinphi*H2_TR - cosphi*K2_TR)/B22
+    tmp2         = cosphi*H2_TR + sinphi*K2_TR
+    tmp3         = sinphi*H2_TR - cosphi*K2_TR
     
-    return(nychk, ychk) 
+    #Implicit polynomial coefficients for the second ellipse
+    
+    AA = cosphi2/A22 + sinphi2/B22 # does not change
+    BB = cosphisinphi/A22 - cosphisinphi/B22 # does not change
+    CC = sinphi2/A22 + cosphi2/B22 # does not change
+    DD = -2.0*cosphi*tmp0 - 2.0*sinphi*tmp1
+    EE = -2.0*sinphi*tmp0 + 2.0*cosphi*tmp1
+    FF = tmp2*tmp2/A22 + tmp3*tmp3/B22 - 1.0
+    
+    #Create and solve the quartic equation to find intersection points.
+    #If execution arrives here, the ellipses are atleast 'close' to intersecting.
+    #Coefficients for the quartic polynomial in y are calculated from the two implicit equations. 
+    e = (state["rstar_eq"]**4.0)*AA*AA + state["rstar_pol"]*state["rstar_pol"]*(state["rstar_eq"]*state["rstar_eq"]*(BB*BB - 2.0*AA*CC) + state["rstar_pol"]*state["rstar_pol"]*CC*CC)
+    d = 2.0*state["rstar_pol"]*(state["rstar_pol"]*state["rstar_pol"]*CC*EE + state["rstar_eq"]*state["rstar_eq"]*(BB*DD - AA*EE))
+    c = state["rstar_eq"]*state["rstar_eq"]*((state["rstar_pol"]*state["rstar_pol"]*(2.0*AA*CC-BB*BB) + DD*DD - 2.0*AA*FF) - 2.0*state["rstar_eq"]*state["rstar_eq"]*AA*AA) + state["rstar_pol"]*state["rstar_pol"]*(2.0*CC*FF + EE*EE)
+    b = 2.0*state["rstar_pol"]*(state["rstar_eq"]*state["rstar_eq"]*(AA*EE - BB*DD) + EE*FF)
+    a = (state["rstar_eq"]*(state["rstar_eq"]*AA - DD) + FF)*(state["rstar_eq"]*(state["rstar_eq"]*AA + DD) + FF)
+
+    e = jnp.full((H2.size, 1), e)
+    
+    cy = jnp.column_stack((e, d, c, b, a)) # flipped so that the highest degree is first
+    
+    return(cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR)
+
+# def qrt_solve(cy, state):
+#     """
+#     Solves the quartic equation (Eq. 15 in Hughes and Chraiabi 2011) for the intersection points of the two ellipses
+
+#     Args:
+#         cy: coefficients of the quartic equation
+#         params: parameters of the transit model
+
+#     Returns:
+#         nychk: number of real roots
+#         ychk: y-values of the intersection points of the two ellipses
+
+#     """
+#     print(f"cy: {cy}")
+#     py = [0] * 5
+#     r  = [[0.0,0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0,0.0],[0.0,0.0,0.0,0.0,0.0]]
+    
+#     if(abs(cy[4]) > 0.0): # if first coefficient not zero (most common case)
+
+#         #Quartic coefficient nonzero -> use quartic formula
+#         for i in range(0,4):
+#             py[4-i] = cy[i]/cy[4]
+#         py[0] = 1.0
+#         print(f"py: {py}")
+#         BIQUADROOTS(py,r)
+#         print("r {}".format(r))
+#         nroots = 4
+    
+#     elif(abs(cy[3])>0.0):
+
+#         #Quartic degenerates to cubic -> use cubic formula
+#         for i in range(0,3):
+#             py[3-i] = cy[i]/cy[3]
+#         py[0] = 1.0
+
+#         CUBICROOTS(py,r)
+#         nroots = 3
+        
+#     elif(abs(cy[2])>0.0):
+
+#         #Quartic degenerates to quadratic -> use quadratic formula
+#         for i in range(0,2):
+#             py[2-i] = cy[i]/cy[2]
+#         py[0] = 1.0
+        
+#         QUADROOTS(py,r)
+#         nroots = 2
+        
+#     elif(abs(cy[1])>0.0):
+
+#         #Quartic degenerates to linear -> solve directly
+#         #cy[1]*Y + cy[0] = 0
+        
+#         r[1][1] = (-cy[0]/cy[1])
+#         r[2][1] = 0.0
+#         nroots = 1
+#     else:
+#         # Ellipses are identical
+#         nroots = 0
+
+#     #Determine which roots are real; discard any complex roots
+#     nychk = 0
+#     ychk = [0] * (nroots+1)
+#     for i in range(1,nroots+1):
+#         if(abs(r[2][i])<(10**(-7))):
+#             nychk = nychk+1
+#             ychk[nychk] = r[1][i]*state["rstar_pol"]
+    
+#     #Sort the real roots by straight insertion
+#     for j in range(2,nychk+1):
+#         tmp0 = ychk[j]
+#         for k in range(j-1,0,-1):
+#             if(ychk[k] <= tmp0):
+#                 break
+#             ychk[k+1] = ychk[k]
+#         ychk[k+1] = tmp0
+    
+#     return(nychk, ychk) 
 
 def numpy_solve(cy):
-    # div = cy[-1]
-    # cy = np.flip(cy)/div
-    py = np.flip(np.array(cy)/cy[-1])
-    # print("py: ", py)
-    # roots = Polynomial(py).roots()
-    roots = np.roots(py)
-    # print("roots: ", roots)
+    py = cy/cy[-1]
+    roots = np.roots(py) # highest degree first
+
     # discard complex roots
-    mask = ~np.iscomplex(roots)
-    roots = np.real(roots[mask])
+    roots = np.real(roots[~np.iscomplex(roots)])
     nychk = len(roots)
     
+    # because of verify_roots processing
     if nychk == 0:
-        roots = [0, 0, 0, 0]
+        roots = np.zeros(4)
     
     return(nychk, roots)
 
-
+def jax_solve(cy):
+    
+    py = cy/cy[-1]
+    roots = jnp.roots(py, strip_zeros=False)
+    # discard complex roots
+    mask = ~jnp.iscomplex(roots)
+    roots = jnp.real(roots[mask])
+    nychk = len(roots)
+    
+    roots = jnp.where(nychk == 0, jnp.zeros(4), roots)
+    # if nychk == 0:
+    #     roots = [0, 0, 0, 0]
+    
+    return(nychk, roots)
 
 
 # def QUADROOTS(p,r):
@@ -628,8 +709,7 @@ def verify_roots(nychk, ychk, state, AA, BB, CC, DD, EE, FF):
         xint: x-coordinates of the intersection points
         yint: y-coordinates of the intersection points
     """
-    # print(f"ychk: {ychk}")
-    # print(f"nychk: {nychk}")
+    
     nintpts = 0
     xint = [0] * (nychk + 1)
     yint = [0] * (nychk + 1)
@@ -651,7 +731,7 @@ def verify_roots(nychk, ychk, state, AA, BB, CC, DD, EE, FF):
             x1 = state["rstar_eq"]*((1.0-(ychk[i]*ychk[i])/(state["rstar_pol"]*state["rstar_pol"]))**0.5)
         x2 = -x1
 
-        # print(f"ellipse2tr: {abs(ellipse2tr(x2,ychk[i],AA,BB,CC,DD,EE,FF))}")
+
         if(abs(ellipse2tr(x1,ychk[i],AA,BB,CC,DD,EE,FF))<(1e-6)):
             nintpts += 1
             if(nintpts>4):
@@ -667,7 +747,5 @@ def verify_roots(nychk, ychk, state, AA, BB, CC, DD, EE, FF):
                 return -4.0
             xint[nintpts] = x2
             yint[nintpts] = ychk[i]
-    # print(f"xint: {xint}")
-    # print(f"yint: {yint}")
-    # print()
+    
     return(nintpts, xint, yint)
