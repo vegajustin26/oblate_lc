@@ -42,9 +42,9 @@ class PlanetSystem:
         longitude of periastron (in radians)
     u : list
         limb-darkening coefficients
-    phi_p : float
+    theta_p : float
         obliquity angle of planet
-    phi_s : float
+    theta_s : float
         obliquity angle of star
     pos_star : tuple
         position of star
@@ -72,12 +72,13 @@ class PlanetSystem:
         ecc = 0,         # eccentricity, in radians?
         w = np.pi,          # longitude of periastron (in radians) # not sure if this is labeled correctly
         u = [0.0, 0.0],     # limb-darkening coefficients
-        phi_p = 0,      # obliquity angle of planet
-        phi_s = 0,          # obliquity angle of star
+        theta_p = 0,      # obliquity angle of planet
+        theta_s = 0,          # obliquity angle of star
         pos_star = (0, 0),  # position of star
-        omega = None,       # argument of periapsis (in radians)
-        only_nintpts = False):      # intersection points flag
-
+        omega = 0,       # argument of periapsis (in radians)
+        only_nintpts = False, # intersection points flag
+        dist = False):         # return distance flag
+                          
         state_keys = list(locals().keys())
         state_keys.remove("self")
         
@@ -89,9 +90,9 @@ class PlanetSystem:
         self._state = state # store all the parameters and values in a dictionary
     
         # set rpol and reff if given req
-        if self._state["req"] is not None and self._state["f"] != 0:
+        if self._state["reff"] is not None and self._state["f"] != 0:
+            self._state["req"] = self._state["reff"] / (1 - self._state["f"])**0.5
             self._state["rpol"] = self._state["req"] * (1 - self._state["f"])
-            self._state["reff"] = (self._state["req"] * self._state["rpol"])**0.5
         else:
             self._state["rpol"] = None
             self._state["reff"] = self._state["rp"]
@@ -151,6 +152,9 @@ def _lightcurve(state, params={}):
     
     if state["only_nintpts"] == True:
         return(np.array(nintpts))
+    if state["dist"] == True:
+        dist[X < 0] = -dist[X < 0]
+        return(np.array(fluxratio), np.array(dist))
     else:
         return(np.array(fluxratio), np.array(nintpts))
 
@@ -176,17 +180,17 @@ def flux_driver(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
         OverlapArea : float; area of overlap between planet and star
         nintpts : int; number of intersection points between planet and star
     """
-
+    flux_driver.counter = 2
     # parameter checks
     if (state["rstar_eq"] is not None) or (state["rstar_pol"] is not None) or (state["req"] is not None) or (state["rpol"] is not None) or (state["rprstar"] is not None):
         if(state["rstar_eq"]<=0.0 or state["rstar_pol"]<=0.0 or state["req"]<=0.0 or state["rpol"]<=0.0):
             raise Exception("Zero or negative rstar_eq, rstar_pol, req, or rpol!")
     
     #rotation angles should be between -2pi and 2pi
-    if(abs(state["phi_s"])>(math.pi)):
-        state["phi_s"] = state["phi_s"]%(math.pi)
-    if(abs(state["phi_p"])>(math.pi)):
-        state["phi_p"] = state["phi_p"]%(math.pi)
+    if(abs(state["theta_s"])>(math.pi)):
+        state["theta_s"] = state["theta_s"]%(math.pi)
+    if(abs(state["theta_p"])>(math.pi)):
+        state["theta_p"] = state["theta_p"]%(math.pi)
     
     # oblate planet
     if (state["u"][0] or state["u"][1]) == 0: # if no limb-darkening
@@ -237,27 +241,27 @@ def oblate_uniform(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
 
 def viz(state, PHI, H2, K2, mode):
     # for visualization/debugging only!!
-    star_x = state["rstar_eq"]* np.cos(PHI) * np.cos(state["phi_s"]) - state["rstar_pol"] * np.sin(PHI) * np.sin(state["phi_s"]) + state["pos_star"][0]
-    star_y = state["rstar_eq"]* np.cos(PHI) * np.sin(state["phi_s"]) + state["rstar_pol"] * np.sin(PHI) * np.cos(state["phi_s"]) + state["pos_star"][1]
+    star_x = state["rstar_eq"]* np.cos(PHI) * np.cos(state["theta_s"]) - state["rstar_pol"] * np.sin(PHI) * np.sin(state["theta_s"]) + state["pos_star"][0]
+    star_y = state["rstar_eq"]* np.cos(PHI) * np.sin(state["theta_s"]) + state["rstar_pol"] * np.sin(PHI) * np.cos(state["theta_s"]) + state["pos_star"][1]
     
     fig,ax = plt.subplots(figsize = (5, 5))
     ax.plot(star_x, star_y, lw=2, label = "star")
 
     if mode == "oblate":
-        oblate_x = state["req"]* np.cos(PHI) * np.cos(state["phi_p"]) - state["rpol"] * np.sin(PHI) * np.sin(state["phi_p"]) + H2
-        oblate_y = state["req"]* np.cos(PHI) * np.sin(state["phi_p"]) + state["rpol"] * np.sin(PHI) * np.cos(state["phi_p"]) + K2
+        oblate_x = state["req"]* np.cos(PHI) * np.cos(state["theta_p"]) - state["rpol"] * np.sin(PHI) * np.sin(state["theta_p"]) + H2
+        oblate_y = state["req"]* np.cos(PHI) * np.sin(state["theta_p"]) + state["rpol"] * np.sin(PHI) * np.cos(state["theta_p"]) + K2
         ax.plot(oblate_x, oblate_y, lw=1, label = "oblate")
     
     elif mode == "circular":
-        circ_x = state["req"]* np.cos(PHI) * np.cos(state["phi_p"]) - state["req"] * np.sin(PHI) * np.sin(state["phi_p"]) + H2
-        circ_y = state["req"]* np.cos(PHI) * np.sin(state["phi_p"]) + state["req"] * np.sin(PHI) * np.cos(state["phi_p"]) + K2
+        circ_x = state["req"]* np.cos(PHI) * np.cos(state["theta_p"]) - state["req"] * np.sin(PHI) * np.sin(state["theta_p"]) + H2
+        circ_y = state["req"]* np.cos(PHI) * np.sin(state["theta_p"]) + state["req"] * np.sin(PHI) * np.cos(state["theta_p"]) + K2
         ax.plot(circ_x, circ_y, lw=1, label = "circular")
     
     elif mode == "both":
-        oblate_x = state["req"]* np.cos(PHI) * np.cos(state["phi_p"]) - state["rpol"] * np.sin(PHI) * np.sin(state["phi_p"]) + H2
-        oblate_y = state["req"]* np.cos(PHI) * np.sin(state["phi_p"]) + state["rpol"] * np.sin(PHI) * np.cos(state["phi_p"]) + K2
-        circ_x = state["req"] * np.cos(PHI) * np.cos(state["phi_p"]) - state["req"] * np.sin(PHI) * np.sin(state["phi_p"]) + H2
-        circ_y = state["req"] * np.cos(PHI) * np.sin(state["phi_p"]) + state["req"] * np.sin(PHI) * np.cos(state["phi_p"]) + K2
+        oblate_x = state["req"]* np.cos(PHI) * np.cos(state["theta_p"]) - state["rpol"] * np.sin(PHI) * np.sin(state["theta_p"]) + H2
+        oblate_y = state["req"]* np.cos(PHI) * np.sin(state["theta_p"]) + state["rpol"] * np.sin(PHI) * np.cos(state["theta_p"]) + K2
+        circ_x = state["req"] * np.cos(PHI) * np.cos(state["theta_p"]) - state["req"] * np.sin(PHI) * np.sin(state["theta_p"]) + H2
+        circ_y = state["req"] * np.cos(PHI) * np.sin(state["theta_p"]) + state["req"] * np.sin(PHI) * np.cos(state["theta_p"]) + K2
         ax.plot(oblate_x, oblate_y, lw=1, label = "oblate")
         ax.plot(circ_x, circ_y, lw=1, label = "circular")
 

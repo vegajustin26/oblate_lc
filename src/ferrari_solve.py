@@ -54,11 +54,11 @@ def qrt_coeff(state, H2, K2):
         K2_TR: y-coordinate of the center of the planet, translated and rotated
     """
 
-    cosphi = math.cos(state["phi_s"])
-    sinphi = math.sin(state["phi_s"])
+    cosphi = math.cos(state["theta_s"])
+    sinphi = math.sin(state["theta_s"])
     H2_TR  = (H2-state["pos_star"][0])*cosphi + (K2-state["pos_star"][1])*sinphi
     K2_TR  = (state["pos_star"][0]-H2)*sinphi + (K2-state["pos_star"][1])*cosphi
-    PHI_2R = state["phi_p"] - state["phi_s"]
+    PHI_2R = state["theta_p"] - state["theta_s"]
     if(abs(PHI_2R)>(2*math.pi)):
         PHI_2R = PHI_2R%(2*math.pi)
     
@@ -123,11 +123,11 @@ def jax_qrt_coeff(state, H2, K2):
         K2_TR: y-coordinate of the center of the planet, translated and rotated
     """
 
-    cosphi = jnp.cos(state["phi_s"])
-    sinphi = jnp.sin(state["phi_s"])
+    cosphi = jnp.cos(state["theta_s"])
+    sinphi = jnp.sin(state["theta_s"])
     H2_TR  = (H2-state["pos_star"][0])*cosphi + (K2-state["pos_star"][1])*sinphi
     K2_TR  = (state["pos_star"][0]-H2)*sinphi + (K2-state["pos_star"][1])*cosphi
-    PHI_2R = state["phi_p"] - state["phi_s"]
+    PHI_2R = state["theta_p"] - state["theta_s"]
     PHI_2R = jnp.where(abs(PHI_2R)>(2*jnp.pi), PHI_2R%(2*jnp.pi), PHI_2R)
     
     # if(abs(PHI_2R)>(2*jnp.pi)):
@@ -608,9 +608,9 @@ def twointpts(x,y,state, H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
         area1 = area1+(state["rstar_eq"]*state["rstar_pol"])
     
     #Find ellipse 2 segment area.
-    #The ellipse segment routine needs an ellipse that is centered at the origin and oriented with the coordinate axes. The intersection point (x[1],y[1]) and (x[2],y[2]) are found with both ellipses translated and rotated by (-state["pos_star"][0],-state["pos_star"][1]) and -state["phi_s"]. Further, translate and rotate the points to put the second ellipse at the origin and oriented with the coordinate axes. The translation is (-H2_TR,-K2_TR) and the rotation is -(state["phi_p"]-state["phi_s"]).
-    cosphi = math.cos(state["phi_s"]-state["phi_p"])
-    sinphi = math.sin(state["phi_s"]-state["phi_p"])
+    #The ellipse segment routine needs an ellipse that is centered at the origin and oriented with the coordinate axes. The intersection point (x[1],y[1]) and (x[2],y[2]) are found with both ellipses translated and rotated by (-state["pos_star"][0],-state["pos_star"][1]) and -state["theta_s"]. Further, translate and rotate the points to put the second ellipse at the origin and oriented with the coordinate axes. The translation is (-H2_TR,-K2_TR) and the rotation is -(state["theta_p"]-state["theta_s"]).
+    cosphi = math.cos(state["theta_s"]-state["theta_p"])
+    sinphi = math.sin(state["theta_s"]-state["theta_p"])
     
     # translated intersection points to center around origin
     x1_tr = (x[1]-H2_TR)*cosphi + (y[1]-K2_TR)*(-sinphi)
@@ -658,8 +658,8 @@ def twointpts(x,y,state, H2_TR,K2_TR,AA,BB,CC,DD,EE,FF):
     
     
     #Translate the point back to the second ellipse in its once translated+rotated position.
-    cosphi  = math.cos(state["phi_p"]-state["phi_s"])
-    sinphi  = math.sin(state["phi_p"]-state["phi_s"])
+    cosphi  = math.cos(state["theta_p"]-state["theta_s"])
+    sinphi  = math.sin(state["theta_p"]-state["theta_s"])
     
     xmid_rt = xmid*cosphi + ymid*(-sinphi) + H2_TR
     ymid_rt = xmid*sinphi + ymid*(cosphi)  + K2_TR 
