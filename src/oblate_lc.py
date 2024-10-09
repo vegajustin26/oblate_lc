@@ -61,7 +61,6 @@ class PlanetSystem:
         times = None,    # array of times
         per = None,          # orbital period, in days
         req = None,          # equatorial radius of planet
-        rp = None,          # rp/rstar
         rpol = None,        # polar radius of planet
         rstar_eq = 1,       # equatorial radius of star
         rstar_pol = 1,      # polar radius of star
@@ -89,13 +88,13 @@ class PlanetSystem:
         
         self._state = state # store all the parameters and values in a dictionary
     
-        # set rpol and reff if given req
+        # set rpol and req if given reff
         if self._state["reff"] is not None and self._state["f"] != 0:
             self._state["req"] = self._state["reff"] / (1 - self._state["f"])**0.5
             self._state["rpol"] = self._state["req"] * (1 - self._state["f"])
-        else:
-            self._state["rpol"] = None
-            self._state["reff"] = self._state["rp"]
+        else: # zero flattening
+            self._state["req"] = self._state["reff"]
+            self._state["rpol"] = self._state["reff"]
 
         if self._state["b"] is not None and self._state["a"] is not None:
             self._state["inc"] = math.acos(self._state["b"]/self._state["a"]) # in radians
