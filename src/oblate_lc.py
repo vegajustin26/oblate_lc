@@ -2,9 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 from orbit import on_sky
-from ferrari_solve import overlap_area, qrt_coeff, verify_roots, numpy_solve, jax_solve, jax_qrt_coeff
-import jax
-jax.config.update("jax_enable_x64", True)
+from ferrari_solve import overlap_area, qrt_coeff, verify_roots, numpy_solve
 
 class PlanetSystem:
     """
@@ -19,19 +17,17 @@ class PlanetSystem:
     per : float
         orbital period, in days
     req : float
-        equatorial radius of planet
-    rprstar : float
-        rp/rstar
+        equatorial radius of planet. Do not set if using reff
     rpol : float
-        polar radius of planet
+        polar radius of planet. Do not set if using reff
     rstar_eq : float
         equatorial radius of star
     rstar_pol : float
         polar radius of star
     reff : float
-        effective radius of planet
+        effective radius of planet, rp/rstar
     f : float
-        oblateness
+        degree of oblateness
     a : float
         semi-major axis, in units of R*
     b : float
@@ -123,19 +119,10 @@ def _lightcurve(state, params={}):
 
     if state["rpol"] is None:
         state["rpol"] = state["req"]
-
-    # cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR = qrt_coeff(state, X, Y)
-    cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR = jax.vmap(jax_qrt_coeff, in_axes = (None, 0, 0))(state, X, Y)
+    
+    cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR = qrt_coeff(state, X, Y)
     
     cy = np.reshape(np.array(cy), (len(X), 5))
-    AA = np.array(AA)
-    BB = np.array(BB)
-    CC = np.array(CC)
-    DD = np.array(DD)
-    EE = np.array(EE)
-    FF = np.array(FF)
-    H2_TR = np.array(H2_TR)
-    K2_TR = np.array(K2_TR)
     
     dist = np.linalg.norm(np.array((X.T, Y.T)), axis = 0)
     
@@ -145,7 +132,7 @@ def _lightcurve(state, params={}):
         return(flux)
 
     for i in range(0, len(X)):
-        flux, nintpt = flux_driver(state, dist[i], cy[i], AA[i], BB[i], CC[i], DD[i], EE[i], FF[i], H2_TR[i], K2_TR[i])
+        flux, nintpt = flux_driver(state, dist[i], cy[i], AA, BB, CC, DD[i], EE[i], FF[i], H2_TR[i], K2_TR[i])
         fluxratio.append(flux)
         nintpts.append(nintpt)
     
@@ -224,8 +211,9 @@ def oblate_uniform(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
         nychk, ychk = numpy_solve(cy)
         
         # nychk, ychk = qrt_solve(cy, state)
+        # print(f"nychk: {nychk} ychk: {ychk}")
         nintpts, xint, yint = verify_roots(nychk, ychk, state, AA, BB, CC, DD, EE, FF)
-
+        
     elif s < (state["rstar_eq"] - state["req"]): # case 5
         nintpts = 0
         xint, yint = None, None
@@ -233,7 +221,7 @@ def oblate_uniform(state, s, cy, AA, BB, CC, DD, EE, FF, H2_TR, K2_TR):
     if state["only_nintpts"] == True:
         OverlapArea = None
     else:
-        OverlapArea = overlap_area(nintpts, xint, yint, state,H2_TR,K2_TR,AA,BB,CC,DD,EE,FF)
+        OverlapArea = overlap_area(nintpts, xint, yint, state, H2_TR, K2_TR, AA, BB, CC, DD, EE, FF)
     
     return(OverlapArea, nintpts)
 
